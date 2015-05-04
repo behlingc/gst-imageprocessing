@@ -1,0 +1,25 @@
+2015-05-03  Carsten Behling  <behlin_c@gmx.de>
+
+	* AUTHORS:
+	  Initial version.
+	* autogen.sh:
+	  Initial version.
+	* ChangeLog:
+	  Initial version.
+	* configure.ac:
+	  Initial version.
+	* COPYING:
+	  Initial version.
+	* Makefile.am:
+	  Initial version.
+	* NEWS:
+	  Initial version.
+	* README:
+	  Initial version.
+	* src/gstimageprocessing.c:
+	  Initial version.
+	* src/gstimageprocessing.h:
+	  Initial version.
+	* src/Makefile.am:
+	  Initial version.
+
