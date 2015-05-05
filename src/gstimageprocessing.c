@@ -79,7 +79,8 @@ enum
 {
   PROP_0,
   PROP_GRAYSCALE,
-  PROP_HALFTONE
+  PROP_HALFTONE,
+  PROP_HISTEQ
 };
 
 /* the capabilities of the inputs and outputs.
@@ -121,6 +122,7 @@ static gboolean gst_imageprocessing_set_caps (GstBaseTransform *trans, GstCaps *
 /* Image Processing algorithms */
 static void half_tone(guchar *in_image, guchar *out_image, guchar threshold, 
           guchar one, guchar zero,  guint rows, guint cols);
+static void hist_equalization(guchar *in_image, guchar *out_image, guint rows, guint cols);
 
 /* GObject vmethod implementations */
 
@@ -142,6 +144,9 @@ gst_image_processing_class_init (GstImageProcessingClass * klass)
           FALSE, G_PARAM_READWRITE | GST_PARAM_CONTROLLABLE));
   g_object_class_install_property (gobject_class, PROP_HALFTONE,
     g_param_spec_boolean ("halftone", "Halftone", "Display halftone video.",
+          FALSE, G_PARAM_READWRITE | GST_PARAM_CONTROLLABLE));
+  g_object_class_install_property (gobject_class, PROP_HISTEQ,
+    g_param_spec_boolean ("histeq", "Histeq", "Histogram equalized video.",
           FALSE, G_PARAM_READWRITE | GST_PARAM_CONTROLLABLE));
 
   gst_element_class_set_details_simple (gstelement_class,
@@ -175,6 +180,7 @@ gst_image_processing_init (GstImageProcessing *filter)
 {
   filter->grayscale = FALSE;
   filter->halftone = FALSE;
+  filter->histeq = FALSE;
 }
 
 static void
@@ -189,6 +195,9 @@ gst_image_processing_set_property (GObject * object, guint prop_id,
       break;
     case PROP_HALFTONE:
       filter->halftone = g_value_get_boolean (value);
+      break;
+    case PROP_HISTEQ:
+      filter->histeq = g_value_get_boolean (value);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -208,6 +217,9 @@ gst_image_processing_get_property (GObject * object, guint prop_id,
       break;
     case PROP_HALFTONE:
       g_value_set_boolean (value, filter->halftone);
+      break;
+    case PROP_HISTEQ:
+      g_value_set_boolean (value, filter->histeq);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -236,12 +248,15 @@ gst_image_processing_transform (GstBaseTransform * base, GstBuffer * inbuf,
   if (filter->halftone == TRUE) {
     half_tone(inmap.data, outmap.data, 128, 255, 0,  filter->height,
         filter->width);
+  } else if (filter->histeq == TRUE) {
+    hist_equalization(inmap.data, outmap.data,filter->height, filter->width);
   } else {
     memcpy(outmap.data, inmap.data, inmap.size);
   }
 
 
-  if (filter->grayscale == TRUE || filter->halftone == TRUE) {
+  if (filter->grayscale == TRUE || filter->halftone == TRUE
+      || filter->histeq == TRUE) {
     chroma_offset = (guint8 *)outmap.data + inmap.size * 2/3;
     memset((void*)chroma_offset, 128, inmap.size/3);
   }
@@ -292,7 +307,7 @@ half_tone(guchar *in_image, guchar *out_image, guchar threshold,
 {
   float **eg, **ep;
   float c[2][3], sum_p, t;
-  int   i, j, m, n, xx, yy;
+  int i, j, m, n, xx, yy;
 
   c[0][0] = 0.0;
   c[0][1] = 0.2;
@@ -348,6 +363,39 @@ half_tone(guchar *in_image, guchar *out_image, guchar threshold,
   for(i=0; i<rows; i++){
     free(eg[i]);
     free(ep[i]);
+  }
+}
+
+static void
+hist_equalization(guchar *in_image, guchar *out_image, guint rows, guint cols)
+{
+  int m, n;
+  guchar histogram[256];
+  unsigned long sum, histogram_sum[256];
+  double constant;
+
+  /* calculate histogram */
+  memset(histogram, 0, sizeof(histogram));
+  for(m=0; m<rows; m++){
+    for(n=0; n<cols; n++){
+       histogram[in_image[m*cols+n]]++;
+    }
+  }
+  /* calculate histogram sum */
+  sum = 0;
+  memset(histogram_sum, 0, sizeof(histogram_sum));
+  for(m=0; m<256; m++){
+    sum += histogram[m];
+    histogram_sum[m] = sum;
+    //printf("Sum: %ld\n", sum);
+  }
+
+  constant = 256.f/(double)(histogram_sum[255]);
+  /* calculate output image */
+  for(m=0; m<rows; m++){
+    for(n=0; n<cols; n++) {
+         out_image[m*cols+n] = histogram_sum[in_image[m*cols+n]] * constant;
+    }
   }
 }
 

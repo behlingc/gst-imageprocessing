@@ -68,6 +68,7 @@ struct _GstImageProcessing {
 
   gboolean grayscale;
   gboolean halftone;
+  gboolean histeq;
 
   gint width;
   gint height;
